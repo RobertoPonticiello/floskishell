@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   parser_hdoc.c                                      :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,57 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	hdoc_count(t_tok *tk)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	t_tok	*cur;
+	int		n;
+
+	cur = tk;
+	n = 0;
+	while (cur && cur->kind != TK_PIPE)
+	{
+		if (cur->kind == TK_HDOC)
+			n++;
+		cur = cur->nxt;
+	}
+	return (n);
 }
 
-void	signals_init(void)
+static char	*assemble_name(char *idx, char *pid)
 {
-	struct sigaction	act;
+	char	*base;
+	char	*mid;
+	char	*final;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	base = ft_strjoin("/tmp/.msh_hdoc_", idx);
+	if (!base)
+		return (NULL);
+	mid = ft_strjoin(base, "_");
+	free(base);
+	if (!mid)
+		return (NULL);
+	final = ft_strjoin(mid, pid);
+	free(mid);
+	return (final);
 }
 
-void	signals_child(void)
+char	*hdoc_tmp_name(void)
 {
-	struct sigaction	act;
+	static int	counter = 0;
+	char		*idx;
+	char		*pid;
+	char		*name;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	idx = ft_itoa(counter++);
+	pid = ft_itoa(getpid());
+	if (!idx || !pid)
+	{
+		free(idx);
+		free(pid);
+		return (NULL);
+	}
+	name = assemble_name(idx, pid);
+	free(idx);
+	free(pid);
+	return (name);
 }

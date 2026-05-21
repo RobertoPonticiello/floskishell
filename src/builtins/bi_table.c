@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   bi_table.c                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,18 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+t_builtin	*bi_table(void)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
-}
+	static t_builtin	table[] = {
+	{"echo", bi_echo},
+	{"cd", bi_cd},
+	{"pwd", bi_pwd},
+	{"export", bi_export},
+	{"unset", bi_unset},
+	{"env", bi_env},
+	{"exit", bi_exit},
+	{NULL, NULL}
+	};
 
-void	signals_init(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	return (table);
 }

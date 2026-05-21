@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   bi_unset.c                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,25 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	bi_unset(char **argv)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
-}
+	int	i;
+	int	status;
 
-void	signals_init(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	status = 0;
+	i = 1;
+	while (argv[i])
+	{
+		if (!ident_ok(argv[i]))
+		{
+			write(2, "minishell: unset: `", 19);
+			write(2, argv[i], ft_strlen(argv[i]));
+			write(2, "': not a valid identifier\n", 26);
+			status = 1;
+		}
+		else
+			env_unset(argv[i]);
+		i++;
+	}
+	return (status);
 }

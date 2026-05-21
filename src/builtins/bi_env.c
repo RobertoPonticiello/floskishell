@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   bi_env.c                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,41 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static int	is_printable_pair(char *pair)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	char	*eq;
+
+	eq = ft_strchr(pair, '=');
+	if (eq && eq[1] != MSH_EXPORT_FLAG[0])
+		return (1);
+	return (0);
 }
 
-void	signals_init(void)
+static int	is_term_hidden(char *pair, int tty)
 {
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	if (tty)
+		return (0);
+	if (ft_strncmp(pair, "COLUMNS=", 8) == 0
+		|| ft_strncmp(pair, "LINES=", 6) == 0)
+		return (1);
+	return (0);
 }
 
-void	signals_child(void)
+int	bi_env(char **argv)
 {
-	struct sigaction	act;
+	char	**env;
+	int		tty;
+	int		i;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	(void)argv;
+	env = env_array();
+	tty = isatty(STDOUT_FILENO);
+	i = 0;
+	while (env && env[i])
+	{
+		if (is_printable_pair(env[i]) && !is_term_hidden(env[i], tty))
+			ft_putendl_fd(env[i], STDOUT_FILENO);
+		i++;
+	}
+	return (0);
 }

@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   state.c                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,16 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	*status_ref(void)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	static int	last_status;
+
+	return (&last_status);
 }
 
-void	signals_init(void)
+char	***env_ref(void)
 {
-	struct sigaction	act;
+	static char	**env_store;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	return (&env_store);
 }

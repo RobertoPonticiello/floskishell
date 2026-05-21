@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   bi_exit.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,45 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static int	looks_numeric(const char *s)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	int	i;
+
+	if (!s || !s[0])
+		return (0);
+	i = 0;
+	if (s[i] == '+' || s[i] == '-')
+		i++;
+	if (!s[i])
+		return (0);
+	while (s[i])
+	{
+		if (!ft_isdigit(s[i]))
+			return (0);
+		i++;
+	}
+	return (1);
 }
 
-void	signals_init(void)
+int	bi_exit(char **argv)
 {
-	struct sigaction	act;
+	int	code;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	code = *status_ref();
+	if (argv[1] && argv[2])
+	{
+		ft_fprintf(2, "minishell: exit: too many arguments\n");
+		return (1);
+	}
+	if (argv[1])
+	{
+		if (!looks_numeric(argv[1]))
+		{
+			ft_fprintf(2,
+				"minishell: exit: %s: numeric argument required\n", argv[1]);
+			exit(2);
+		}
+		code = ft_atoi(argv[1]) & 0xFF;
+	}
+	exit(code);
 }

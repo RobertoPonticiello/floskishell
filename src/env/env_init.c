@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   env_init.c                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,56 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+extern char	**environ;
+
+static char	**clone_environ(void)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	char	**copy;
+	int		n;
+	int		i;
+
+	n = 0;
+	while (environ[n])
+		n++;
+	copy = malloc(sizeof(char *) * (n + 1));
+	if (!copy)
+		return (NULL);
+	i = 0;
+	while (i < n)
+	{
+		copy[i] = ft_strdup(environ[i]);
+		if (!copy[i])
+		{
+			while (--i >= 0)
+				free(copy[i]);
+			free(copy);
+			return (NULL);
+		}
+		i++;
+	}
+	copy[i] = NULL;
+	return (copy);
 }
 
-void	signals_init(void)
+static void	seed_defaults(void)
 {
-	struct sigaction	act;
+	char	cwd[MSH_PATHMAX];
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	if (!env_get("PWD") && getcwd(cwd, MSH_PATHMAX))
+		env_set("PWD", cwd, 1);
+	if (!env_get("SHLVL"))
+		env_set("SHLVL", "1", 1);
 }
 
-void	signals_child(void)
+void	env_init(void)
 {
-	struct sigaction	act;
+	*env_ref() = clone_environ();
+	seed_defaults();
+}
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+char	**env_array(void)
+{
+	if (!*env_ref())
+		*env_ref() = clone_environ();
+	return (*env_ref());
 }

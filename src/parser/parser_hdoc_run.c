@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   parser_hdoc_run.c                                  :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,39 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	hdoc_one(t_cmd *cmd, t_tok *tk)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	int	fd;
+
+	fd = -1;
+	if (hdoc_stage(tk->nxt->raw, tk->nxt->quoted, &fd) == -1 || fd == -1)
+		return (-1);
+	hdoc_swap_fd(cmd, fd);
+	return (0);
 }
 
-void	signals_init(void)
+int	hdoc_many(t_cmd *cmd, t_tok *tk)
 {
-	struct sigaction	act;
+	char	*delims[MSH_NAMECAP];
+	int		n;
+	int		i;
+	int		fd;
+	int		ret;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	n = hdoc_count(tk);
+	if (n <= 1)
+		return (hdoc_one(cmd, tk));
+	hdoc_collect(tk, delims, n);
+	i = -1;
+	ret = 0;
+	while (++i < n && ret == 0)
+	{
+		fd = -1;
+		ret = hdoc_stage(delims[i], 0, &fd);
+		if (i == n - 1 && ret == 0 && fd != -1)
+			hdoc_swap_fd(cmd, fd);
+		else if (fd != -1)
+			close(fd);
+	}
+	return (ret);
 }

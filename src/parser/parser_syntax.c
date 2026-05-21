@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   parser_syntax.c                                    :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,41 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static int	is_redir(t_tktype k)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	return (k == TK_IN || k == TK_OUT || k == TK_HDOC || k == TK_APPEND);
 }
 
-void	signals_init(void)
+static int	check_pipe(t_tok *cur)
 {
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	if (!cur->nxt || cur->nxt->kind == TK_PIPE)
+		return (0);
+	return (1);
 }
 
-void	signals_child(void)
+static int	check_redir(t_tok *cur)
 {
-	struct sigaction	act;
+	if (!cur->nxt || cur->nxt->kind != TK_WORD)
+		return (0);
+	return (1);
+}
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+int	syntax_ok(t_tok *toks)
+{
+	t_tok	*cur;
+
+	if (!toks)
+		return (1);
+	if (toks->kind == TK_PIPE)
+		return (0);
+	cur = toks;
+	while (cur)
+	{
+		if (cur->kind == TK_PIPE && !check_pipe(cur))
+			return (0);
+		if (is_redir(cur->kind) && !check_redir(cur))
+			return (0);
+		cur = cur->nxt;
+	}
+	return (1);
 }

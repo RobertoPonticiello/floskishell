@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   exec_pipes.c                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,59 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	**alloc_pipes(int n)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	int	**pipes;
+	int	i;
+
+	if (n <= 1)
+		return (NULL);
+	pipes = malloc(sizeof(int *) * (n - 1));
+	if (!pipes)
+		return (NULL);
+	i = 0;
+	while (i < n - 1)
+	{
+		pipes[i] = malloc(sizeof(int) * 2);
+		if (!pipes[i] || pipe(pipes[i]) < 0)
+		{
+			perror("pipe");
+			while (--i >= 0)
+				free(pipes[i]);
+			free(pipes);
+			return (NULL);
+		}
+		i++;
+	}
+	return (pipes);
 }
 
-void	signals_init(void)
+void	pipes_close_all(int **pipes, int n)
 {
-	struct sigaction	act;
+	int	i;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	if (!pipes)
+		return ;
+	i = 0;
+	while (i < n - 1)
+	{
+		close(pipes[i][0]);
+		close(pipes[i][1]);
+		i++;
+	}
 }
 
-void	signals_child(void)
+void	pipes_free(int **pipes, int n)
 {
-	struct sigaction	act;
+	int	i;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	if (!pipes)
+		return ;
+	i = 0;
+	while (i < n - 1)
+	{
+		free(pipes[i]);
+		i++;
+	}
+	free(pipes);
 }

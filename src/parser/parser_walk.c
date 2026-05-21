@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   parser_walk.c                                      :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,36 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static int	is_redir(t_tktype k)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	return (k == TK_IN || k == TK_OUT || k == TK_HDOC || k == TK_APPEND);
 }
 
-void	signals_init(void)
+t_tok	*cmd_skip_to_next(t_tok *tk)
 {
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	while (tk && tk->kind != TK_PIPE)
+	{
+		if (is_redir(tk->kind))
+		{
+			tk = tk->nxt;
+			if (tk)
+				tk = tk->nxt;
+		}
+		else
+			tk = tk->nxt;
+	}
+	if (tk && tk->kind == TK_PIPE)
+		tk = tk->nxt;
+	return (tk);
 }
 
-void	signals_child(void)
+t_tok	*skip_hdoc_cluster(t_tok *cur)
 {
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	while (cur && cur->kind == TK_HDOC)
+	{
+		cur = cur->nxt;
+		if (cur)
+			cur = cur->nxt;
+	}
+	return (cur);
 }

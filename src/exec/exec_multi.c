@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   exec_multi.c                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,26 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+int	run_multi(t_cmd *list, int n)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
-}
+	int		**pipes;
+	pid_t	*pids;
 
-void	signals_init(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	pipes = alloc_pipes(n);
+	if (n > 1 && !pipes)
+		return (1);
+	pids = (pid_t *)malloc(sizeof(pid_t) * n);
+	if (!pids)
+	{
+		pipes_free(pipes, n);
+		return (1);
+	}
+	signals_silence_parent();
+	spawn_all(list, pipes, pids, n);
+	pipes_close_all(pipes, n);
+	wait_all(pids, n);
+	signals_init();
+	pipes_free(pipes, n);
+	free(pids);
+	return (*status_ref());
 }

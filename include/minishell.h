@@ -3,192 +3,178 @@
 /*                                                        :::      ::::::::   */
 /*   minishell.h                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ffebbrar <ffebbrar@student.42.fr>          +#+  +:+       +#+        */
+/*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/01/02 19:47:36 by ffebbrar          #+#    #+#             */
-/*   Updated: 2025/07/05 14:30:13 by ffebbrar         ###   ########.fr       */
+/*   Created: 2026/05/22 10:00:00 by rpontici          #+#    #+#             */
+/*   Updated: 2026/05/22 10:00:00 by rpontici         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef MINISHELL_H
 # define MINISHELL_H
 
-# include <sys/wait.h>
 # include <stdio.h>
 # include <stdlib.h>
 # include <unistd.h>
+# include <string.h>
 # include <signal.h>
+# include <fcntl.h>
+# include <errno.h>
+# include <sys/wait.h>
+# include <sys/stat.h>
 # include <readline/readline.h>
 # include <readline/history.h>
-# include <string.h>
 # include "libft.h"
-# include "../printf/ft_printf.h"
+# include "ft_printf.h"
 
-typedef struct s_shell_state
+# define MSH_PROMPT "minishell$ "
+# define MSH_EXPORT_FLAG "\001"
+# define MSH_EXPBUF 4096
+# define MSH_NAMECAP 256
+# define MSH_PATHMAX 4096
+
+extern volatile sig_atomic_t	g_signal;
+
+typedef enum e_tktype
 {
-	volatile sig_atomic_t	signal;
-	int						last_status;
-	char					**local_env;
-	volatile sig_atomic_t	executing;
-}	t_shell_state;
+	TK_WORD,
+	TK_PIPE,
+	TK_IN,
+	TK_OUT,
+	TK_HDOC,
+	TK_APPEND
+}	t_tktype;
+
+typedef struct s_tok
+{
+	char			*raw;
+	t_tktype		kind;
+	int				quoted;
+	struct s_tok	*nxt;
+}	t_tok;
+
+typedef struct s_cmd
+{
+	char			*bin;
+	char			**argv;
+	int				fd_in;
+	int				fd_out;
+	int				is_builtin;
+	int				redir_err;
+	struct s_cmd	*nxt;
+}	t_cmd;
 
 typedef struct s_builtin
 {
-	const char	*name;
-	int			(*func)(char **);
+	const char	*id;
+	int			(*fn)(char **);
 }	t_builtin;
 
-typedef struct s_command
-{
-	char				*path;
-	char				**argv;
-	int					in_fd;
-	int					out_fd;
-	int					is_builtin;
-	int					redir_error;
-	struct s_command	*next;
-}	t_command;
+/* state accessors */
+int			*status_ref(void);
+char		***env_ref(void);
 
-typedef enum e_token_type
-{
-	TOKEN_WORD,
-	TOKEN_PIPE,
-	TOKEN_REDIR_IN,
-	TOKEN_REDIR_OUT,
-	TOKEN_HEREDOC,
-	TOKEN_APPEND,
-	TOKEN_EOF
-}	t_token_type;
+/* signals */
+void		signals_init(void);
+void		signals_child(void);
+void		signals_silence_parent(void);
+void		signals_hdoc(void);
 
-typedef struct s_token
-{
-	char			*value;
-	t_token_type	type;
-	int				has_quotes;
-	struct s_token	*next;
-}	t_token;
+/* lexer */
+t_tok		*lex_line(const char *src);
+t_tok		*tok_new(const char *raw, t_tktype kind);
+int			is_op_start(const char *src, int i);
+t_tok		*lex_op(const char *src, int *idx);
+char		*lex_quoted_word(const char *src, int *idx, char q);
+char		*lex_bare_word(const char *src, int *idx);
 
-extern t_shell_state	g_state;
+/* quotes & escape */
+void		quote_strip_list(t_tok *list);
+char		*quote_strip_str(char *src);
+int			esc_apply(const char *s, int *i, char *dst, int *j);
+void		qs_single(char *src, int *i, char *dst, int *j);
+void		qs_double(char *src, int *i, char *dst, int *j);
+void		qs_step(char *src, int *i, char *dst, int *j);
 
-/* --- Funzioni user (Parte esecuzione & segnali) --- */
-void		setup_signals(void);
-int			execute_pipeline(t_command *commands);
-int			count_commands(t_command *commands);
-void		cleanup_after_execution(t_command *commands);
+/* expansion */
+void		expand_list(t_tok **head);
+char		*expand_str(const char *src);
+int			expand_dollar(const char *src, int *si, char *dst, int *di);
+int			expand_status(char *dst, int *di);
+int			expand_name(const char *src, int start, int len, char *dst);
+int			var_name_len(const char *src, int start);
 
-/* --- Funzioni Persona 1 (Parte parsing) --- */
-t_command	*parse_input(const char *line);
-void		free_commands(t_command *commands);
+/* parser */
+t_cmd		*parse(const char *line);
+int			syntax_ok(t_tok *toks);
+t_cmd		*build_cmds(t_tok *toks);
+int			apply_redir(t_cmd *cmd, t_tok *tk);
+int			hdoc_one(t_cmd *cmd, t_tok *tk);
+int			hdoc_many(t_cmd *cmd, t_tok *tk);
+int			hdoc_count(t_tok *tk);
+char		*hdoc_tmp_name(void);
+int			hdoc_read(char *delim, int fd, int quoted);
+int			hdoc_stage(char *delim, int quoted, int *out_fd);
+void		hdoc_swap_fd(t_cmd *cmd, int fd);
+int			hdoc_collect(t_tok *start, char **delims, int cap);
 
-/* --- Funzioni di tokenizzazione --- */
-t_token		*tokenize(const char *input);
-void		free_tokens(t_token *tokens);
+/* cmd build helpers */
+int			is_builtin_name(const char *name);
+t_cmd		*cmd_new(void);
+t_cmd		*cmd_finalize(t_cmd *cmd, int n, char **argv);
+void		cmd_push(t_cmd **head, t_cmd **tail, t_cmd *node);
+t_tok		*cmd_skip_to_next(t_tok *tk);
+t_tok		*skip_hdoc_cluster(t_tok *cur);
 
-/* --- Funzioni di gestione token --- */
-t_token		*create_token(const char *value, t_token_type type);
-t_token		*handle_redirection_operator(const char *input, int *i);
-int			is_operator(const char *input, int i);
-char		*extract_quoted_word(const char *input, int *i, char quote);
-char		*extract_word(const char *input, int *i);
+/* memory cleanup */
+void		tok_free(t_tok *list);
+void		cmd_free(t_cmd *list);
+void		cmd_close_fds(t_cmd *cmd);
 
-/* --- Funzioni di gestione quote --- */
-void		handle_quotes(t_token *token);
-int			process_escape(const char *str, int *i, char *result, int *j);
-void		process_single_quotes(char *src, int *i, char *dst, int *j);
-void		process_double_quotes(char *src, int *i, char *dst, int *j);
-void		process_character(char *src, int *i, char *dst, int *j);
-char		*process_token_quotes(char *src);
+/* exec */
+int			run_pipeline(t_cmd *list);
+int			resolve_status(int status);
+int			run_multi(t_cmd *list, int n);
+int			cmd_count(t_cmd *list);
+void		child_dispatch(t_cmd *cmd);
+void		child_pipes_setup(t_cmd *cmd, int **pipes, int n, int i);
+void		apply_cmd_fds(t_cmd *cmd);
+int			**alloc_pipes(int n);
+void		pipes_close_all(int **pipes, int n);
+void		pipes_free(int **pipes, int n);
+void		wait_all(pid_t *pids, int n);
+void		spawn_all(t_cmd *list, int **pipes, pid_t *pids, int n);
 
-/* --- Funzioni di gestione variabili --- */
-int			copy_env_value(const char *src, int *si, char *dst, int *di);
-void		expand_variables(t_token **tokens);
-char		*expand_string(const char *str);
+/* path resolution */
+char		*resolve_bin(const char *cmd);
+char		*path_join(const char *dir, const char *cmd);
+int			is_runnable(const char *path);
+char		*path_next_tok(char **ptr);
+char		*path_search_list(const char *cmd, char *path);
+char		*path_handle_explicit(const char *cmd);
 
-/* --- Funzioni utility per variabili --- */
-int			handle_exit_status(char *dst, int *di);
-void		copy_env_value_to_dst(char *val, char *dst, int *di);
-int			get_var_length(const char *src, int start);
-int			handle_env_var(const char *src, int var_start, int var_len,
-				char *dst);
+/* environment */
+void		env_init(void);
+char		*env_get(const char *name);
+int			env_set(const char *name, const char *value, int overwrite);
+int			env_unset(const char *name);
+char		**env_array(void);
+char		*env_pair_new(const char *name, const char *value);
+int			env_find(const char *name);
+int			env_count(void);
+int			ident_ok(const char *name);
 
-/* --- Funzioni di controllo sintassi --- */
-int			check_syntax_errors(t_token *tokens);
-
-/* --- Funzioni di gestione redirezioni --- */
-int			handle_redirection(t_command *cmd, t_token *curr);
-
-/* --- Funzioni di gestione heredoc --- */
-char		*create_temp_filename(void);
-int			handle_multiple_heredocs(t_command *cmd, t_token *start_token);
-int			handle_single_heredoc(t_command *cmd, t_token *curr);
-int			count_heredocs(t_token *start);
-
-/* --- Funzioni di costruzione comandi --- */
-t_command	*build_commands(t_token *tokens);
-int			is_builtin_command(const char *cmd_name);
-t_command	*create_command(void);
-t_command	*finalize_command(t_command *cmd, int argc, char **argv);
-void		add_command_to_list(t_command **head, t_command **tail,
-				t_command *cmd);
-t_token		*find_next_command(t_token *curr);
-
-/* --- Funzioni di risoluzione percorsi --- */
-char		*find_executable(const char *cmd);
-char		*get_next_path_token(char **path_ptr);
-int			is_executable(const char *path);
-char		*build_path_string(const char *dir, const char *cmd);
-char		*build_and_check_path(const char *dir, const char *cmd);
-char		*handle_absolute_path(const char *cmd);
-char		*search_in_path(const char *cmd, char *path);
-
-/* --- Funzioni built-in --- */
-int			ft_echo(char **args);
-int			ft_cd(char **args);
-int			ft_pwd(char **args);
-int			ft_export(char **args);
-int			ft_unset(char **args);
-int			ft_env(char **args);
-int			ft_exit(char **args);
-
-// Environment management
-int			ft_setenv(const char *name, const char *value, int overwrite);
-int			ft_unsetenv(const char *name);
-char		*ft_getenv(const char *name);
-char		**ft_get_environ(void);
-int			is_valid_identifier(const char *name);
-
-/* --- Environment helper functions --- */
-char		**copy_environ_vars(void);
-char		**get_static_env(void);
-void		set_static_env(char **new_env);
-char		**get_our_environ(void);
-void		set_our_environ(char **new_env);
-char		*create_env_string(const char *name, const char *value);
-int			find_env_index(const char *name);
-int			count_env_vars(void);
-int			remove_single_var(void);
-
-t_builtin	*get_builtins(void);
-
-/* --- Funzioni export --- */
-void		print_exported_vars(void);
-int			compare_env_vars(const void *a, const void *b);
-void		print_var_without_value(char *env_var, char *eq_pos);
-void		print_var_with_empty_value(char *env_var, char *eq_pos);
-void		print_var_with_value(char *env_var, char *eq_pos);
-void		print_single_var(char *env_var);
-
-/* --- Funzioni di pipeline --- */
-int			init_pipeline(t_command *commands, int ***pipes, pid_t **pids);
-void		cleanup_resources(int **pipes, pid_t *pids, int num_cmds);
-void		setup_child_pipes(t_command *cmd, int **pipes, int num_cmds, int i);
-void		execute_child(t_command *cmd);
-void		wait_for_children(pid_t *pids, int num_cmds);
-int			**create_pipes(int num_cmds);
-void		execute_all_commands(t_command *commands, int **pipes,
-				pid_t *pids, int num_cmds);
-void		close_all_pipes(int **pipes, int num_cmds);
-
-void		execute_builtin(t_command *cmd);
+/* builtins */
+int			bi_echo(char **argv);
+int			bi_cd(char **argv);
+int			bi_pwd(char **argv);
+int			bi_env(char **argv);
+int			bi_export(char **argv);
+int			bi_unset(char **argv);
+int			bi_exit(char **argv);
+t_builtin	*bi_table(void);
+void		run_builtin(t_cmd *cmd);
+void		bi_print_exports(void);
+void		bi_print_one(char *pair);
 
 #endif

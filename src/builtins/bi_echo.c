@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   bi_echo.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,38 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static int	only_n_flag(const char *arg)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	int	i;
+
+	if (!arg || arg[0] != '-' || arg[1] != 'n')
+		return (0);
+	i = 2;
+	while (arg[i] == 'n')
+		i++;
+	return (arg[i] == '\0');
 }
 
-void	signals_init(void)
+int	bi_echo(char **argv)
 {
-	struct sigaction	act;
+	int	i;
+	int	newline;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
-}
-
-void	signals_child(void)
-{
-	struct sigaction	act;
-
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	i = 1;
+	newline = 1;
+	while (argv[i] && only_n_flag(argv[i]))
+	{
+		newline = 0;
+		i++;
+	}
+	while (argv[i])
+	{
+		write(STDOUT_FILENO, argv[i], ft_strlen(argv[i]));
+		if (argv[i + 1])
+			write(STDOUT_FILENO, " ", 1);
+		i++;
+	}
+	if (newline)
+		write(STDOUT_FILENO, "\n", 1);
+	return (0);
 }

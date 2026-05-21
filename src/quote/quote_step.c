@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
+/*   quote_step.c                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,54 +12,51 @@
 
 #include "minishell.h"
 
-volatile sig_atomic_t	g_signal = 0;
-
-static void	consume_signal(void)
+void	qs_single(char *src, int *i, char *dst, int *j)
 {
-	if (g_signal == SIGINT)
+	(*i)++;
+	while (src[*i] && src[*i] != '\'')
 	{
-		*status_ref() = 130;
-		g_signal = 0;
+		dst[*j] = src[*i];
+		(*j)++;
+		(*i)++;
 	}
+	if (src[*i] == '\'')
+		(*i)++;
 }
 
-static void	process_line(char *line)
+void	qs_double(char *src, int *i, char *dst, int *j)
 {
-	t_cmd	*pipeline;
-
-	if (*line)
-		add_history(line);
-	pipeline = parse(line);
-	if (!pipeline)
-		return ;
-	*status_ref() = run_pipeline(pipeline);
-	cmd_free(pipeline);
-}
-
-static void	repl(int interactive)
-{
-	char	*line;
-
-	while (1)
+	(*i)++;
+	while (src[*i] && src[*i] != '"')
 	{
-		line = readline(MSH_PROMPT);
-		consume_signal();
-		if (!line)
+		if (src[*i] == '\\' && src[*i + 1])
+			esc_apply(src, i, dst, j);
+		else if (src[*i] == '$' && src[*i + 1])
+			expand_dollar(src, i, dst, j);
+		else
 		{
-			if (interactive)
-				write(STDOUT_FILENO, "exit\n", 5);
-			break ;
+			dst[*j] = src[*i];
+			(*j)++;
+			(*i)++;
 		}
-		process_line(line);
-		free(line);
 	}
+	if (src[*i] == '"')
+		(*i)++;
 }
 
-int	main(void)
+void	qs_step(char *src, int *i, char *dst, int *j)
 {
-	signals_init();
-	env_init();
-	repl(isatty(STDIN_FILENO));
-	rl_clear_history();
-	return (*status_ref());
+	if (src[*i] == '\'')
+		qs_single(src, i, dst, j);
+	else if (src[*i] == '"')
+		qs_double(src, i, dst, j);
+	else if (src[*i] == '$' && src[*i + 1])
+		expand_dollar(src, i, dst, j);
+	else
+	{
+		dst[*j] = src[*i];
+		(*j)++;
+		(*i)++;
+	}
 }

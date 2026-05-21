@@ -1,81 +1,115 @@
-# === Directory principali ===
-SRCDIR   := src
-INCDIR   := include
-OBJDIR   := obj
-LIBFTDIR := libft
-PRTFDIR  := printf
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    Makefile                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/05/22 10:00:00 by rpontici          #+#    #+#              #
+#    Updated: 2026/05/22 10:00:00 by rpontici         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
 
-# === Output ===
-NAME     := minishell
-LIBFT    := $(LIBFTDIR)/libft.a
-PRINTF   := $(PRTFDIR)/libftprintf.a
+NAME       := minishell
 
-# === Rilevamento sistema operativo ===
-UNAME_S := $(shell uname -s)
+SRC_DIR    := src
+INC_DIR    := include
+OBJ_DIR    := build
+LIBFT_DIR  := libft
+PRINTF_DIR := printf
 
-# === Compiler & flags ===
-CC       := gcc
-CFLAGS   := -Wall -Wextra -Werror -g -I$(INCDIR) -I$(LIBFTDIR) -I$(PRTFDIR)
-LDFLAGS  := -L$(LIBFTDIR) -lft -L$(PRTFDIR) -lftprintf
+LIBFT      := $(LIBFT_DIR)/libft.a
+LIBPRINTF  := $(PRINTF_DIR)/libftprintf.a
 
-# === Configurazione specifica per sistema operativo ===
+CC         := cc
+CFLAGS     := -Wall -Wextra -Werror
+INCLUDES   := -I$(INC_DIR) -I$(LIBFT_DIR) -I$(PRINTF_DIR)
+
+UNAME_S    := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-	# macOS con Homebrew
-	READLINE_PATH := $(shell brew --prefix readline 2>/dev/null)
-	ifneq ($(READLINE_PATH),)
-		CFLAGS += -I$(READLINE_PATH)/include
-		LDFLAGS += -L$(READLINE_PATH)/lib
-	else
-		# Fallback se brew non funziona
-		CFLAGS += -I/opt/homebrew/Cellar/readline/8.2.13/include
-		LDFLAGS += -L/opt/homebrew/Cellar/readline/8.2.13/lib
-	endif
-	LDFLAGS += -lreadline
-else ifeq ($(UNAME_S),Linux)
-	# Linux - prova diversi percorsi comuni
-	LDFLAGS += -lreadline
-	# Aggiungi percorsi comuni se readline non è nel path standard
-	ifneq ($(wildcard /usr/include/readline),)
-		# readline è installato nel path standard
-	else ifneq ($(wildcard /usr/local/include/readline),)
-		CFLAGS += -I/usr/local/include
-		LDFLAGS += -L/usr/local/lib
+	RL_PREFIX := $(shell brew --prefix readline 2>/dev/null)
+	ifneq ($(RL_PREFIX),)
+		INCLUDES += -I$(RL_PREFIX)/include
+		LDFLAGS  += -L$(RL_PREFIX)/lib
 	endif
 endif
+LDLIBS     := -lreadline
 
-# === Ricerca ricorsiva dei file .c ===
-SRCS := $(shell find $(SRCDIR) -type f -name '*.c')
-OBJS := $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
+SOURCES := \
+	src/core/main.c \
+	src/core/signals.c \
+	src/core/signals_modes.c \
+	src/core/state.c \
+	src/lex/lex_main.c \
+	src/lex/lex_word.c \
+	src/lex/lex_op.c \
+	src/quote/quote_main.c \
+	src/quote/quote_step.c \
+	src/quote/quote_escape.c \
+	src/expand/expand_main.c \
+	src/expand/expand_dollar.c \
+	src/parser/parser_main.c \
+	src/parser/parser_syntax.c \
+	src/parser/parser_cmd.c \
+	src/parser/parser_build.c \
+	src/parser/parser_walk.c \
+	src/parser/parser_redir.c \
+	src/parser/parser_hdoc.c \
+	src/parser/parser_hdoc_read.c \
+	src/parser/parser_hdoc_stage.c \
+	src/parser/parser_hdoc_run.c \
+	src/env/env_init.c \
+	src/env/env_get.c \
+	src/env/env_set.c \
+	src/env/env_unset.c \
+	src/exec/exec_main.c \
+	src/exec/exec_multi.c \
+	src/exec/exec_status.c \
+	src/exec/exec_pipes.c \
+	src/exec/exec_spawn.c \
+	src/exec/exec_child.c \
+	src/exec/exec_child_pipes.c \
+	src/exec/exec_path.c \
+	src/exec/exec_path_utils.c \
+	src/builtins/bi_echo.c \
+	src/builtins/bi_cd.c \
+	src/builtins/bi_pwd.c \
+	src/builtins/bi_env.c \
+	src/builtins/bi_exit.c \
+	src/builtins/bi_export.c \
+	src/builtins/bi_export_print.c \
+	src/builtins/bi_unset.c \
+	src/builtins/bi_table.c \
+	src/builtins/bi_dispatch.c \
+	src/utils/free_utils.c
 
-# === Target default ===
+OBJECTS := $(SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+
 all: $(NAME)
 
-# === Linking finale ===
-$(NAME): $(LIBFT) $(PRINTF) $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@
+$(NAME): $(LIBFT) $(LIBPRINTF) $(OBJECTS)
+	$(CC) $(CFLAGS) $(OBJECTS) -L$(LIBFT_DIR) -lft -L$(PRINTF_DIR) -lftprintf \
+		$(LDFLAGS) $(LDLIBS) -o $@
 
-# === Compilazione sorgenti in obj/... ===
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-# === Costruzione librerie ===
 $(LIBFT):
-	@$(MAKE) -C $(LIBFTDIR)
+	@$(MAKE) -C $(LIBFT_DIR)
 
-$(PRINTF):
-	@$(MAKE) -C $(PRTFDIR)
+$(LIBPRINTF):
+	@$(MAKE) -C $(PRINTF_DIR)
 
-# === Utility ===
 clean:
-	@rm -rf $(OBJDIR)
-	@$(MAKE) -C $(LIBFTDIR) clean
-	@$(MAKE) -C $(PRTFDIR) clean
+	@rm -rf $(OBJ_DIR)
+	@$(MAKE) -C $(LIBFT_DIR) clean
+	@$(MAKE) -C $(PRINTF_DIR) clean
 
 fclean: clean
 	@rm -f $(NAME)
-	@$(MAKE) -C $(LIBFTDIR) fclean
-	@$(MAKE) -C $(PRTFDIR) fclean
+	@$(MAKE) -C $(LIBFT_DIR) fclean
+	@$(MAKE) -C $(PRINTF_DIR) fclean
 
 re: fclean all
 

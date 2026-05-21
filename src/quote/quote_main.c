@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signals.c                                          :+:      :+:    :+:   */
+/*   quote_main.c                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rpontici <rpontici@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -12,36 +12,52 @@
 
 #include "minishell.h"
 
-static void	on_sigint(int sig)
+static void	mark_quoted(t_tok *tk)
 {
-	g_signal = sig;
-	write(STDOUT_FILENO, "\n", 1);
-	rl_replace_line("", 0);
-	rl_on_new_line();
-	rl_redisplay();
+	if (ft_strchr(tk->raw, '\'') || ft_strchr(tk->raw, '"'))
+		tk->quoted = 1;
 }
 
-void	signals_init(void)
+static void	strip_one(t_tok *tk)
 {
-	struct sigaction	act;
+	char	*clean;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = on_sigint;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &act, NULL);
-	act.sa_handler = SIG_IGN;
-	act.sa_flags = 0;
-	sigaction(SIGQUIT, &act, NULL);
+	if (!tk || !tk->raw || tk->kind != TK_WORD)
+		return ;
+	mark_quoted(tk);
+	clean = quote_strip_str(tk->raw);
+	if (!clean)
+		return ;
+	free(tk->raw);
+	tk->raw = clean;
 }
 
-void	signals_child(void)
+void	quote_strip_list(t_tok *list)
 {
-	struct sigaction	act;
+	t_tok	*cur;
 
-	ft_memset(&act, 0, sizeof(act));
-	act.sa_handler = SIG_DFL;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGINT, &act, NULL);
-	sigaction(SIGQUIT, &act, NULL);
+	cur = list;
+	while (cur)
+	{
+		if (cur->kind == TK_WORD)
+			strip_one(cur);
+		cur = cur->nxt;
+	}
+}
+
+char	*quote_strip_str(char *src)
+{
+	char	*buf;
+	int		i;
+	int		j;
+
+	buf = malloc(MSH_EXPBUF);
+	if (!buf)
+		return (NULL);
+	i = 0;
+	j = 0;
+	while (src[i])
+		qs_step(src, &i, buf, &j);
+	buf[j] = '\0';
+	return (buf);
 }
